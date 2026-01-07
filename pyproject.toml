@@ -4,4 +4,20 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "langchain>=1.2.1",
+    "langchain-openai>=1.1.6",
+    "langgraph>=1.0.5",
+    "pydantic>=2.12.5",
+    "python-dotenv>=1.2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=7.0.0",
+    "rich>=14.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
