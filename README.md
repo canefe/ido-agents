@@ -41,79 +41,54 @@ result = (
 )
 ```
 
-## Quick Example
+## Example
 
-Shows a task-oriented flow: define the shape of a task result, give the agent a helper tool, then ask it to plan and report the task outcome in structured form.
+Define the response shape, give the agent a helper tool, then ask it to answer about dogs and cats in structured form.
 
 ```python
-import os
-from typing import Literal
-
-from langchain_core.messages import HumanMessage
-from langchain_core.tools import tool
-from pydantic import BaseModel, Field, SecretStr
-
-from idoagents.agents.ido_agent import create_ido_agent
-from idoagents.agents.tool_runner import ToolCallerSettings
-from idoagents.models.openai import OpenAIModelConfig, build_chat_model
-
-
-class TaskResult(BaseModel):
-    status: Literal["success", "needs_followup"] = Field(
-        description="High-level outcome for the task",
-        examples=["success"],
+class PetResult(BaseModel):
+    favorite: Literal["dog", "cat"] = Field(
+        description="Which pet is the favorite in this answer",
+        examples=["dog"],
     )
-    summary: str = Field(
-        description="Short, user-facing summary of the result",
-        examples=["Created a plan and listed the next steps."],
+    reason: str = Field(
+        description="Short reason for the preference",
+        examples=["Dogs are loyal and love outdoor adventures."],
     )
-    next_steps: list[str] = Field(
-        description="Actionable follow-ups if any",
-        examples=[["Send the draft to the team", "Schedule a review"]],
+    tips: list[str] = Field(
+        description="Helpful tips for the chosen pet",
+        examples=[["Take them for daily walks", "Keep fresh water available"]],
     )
 
 
 @tool
-def suggest_next_steps(topic: str) -> list[str]:
-    """Provide short, actionable next steps for a topic."""
+def web_search(query: str) -> list[str]:
+    """Mock web search results for a query."""
     return [
-        f"Draft the {topic} scope",
-        f"Estimate effort for {topic}",
-        f"Schedule a quick review for {topic}",
+        f"Result: {query} daily care checklist",
+        f"Result: {query} vet visit schedule",
+        f"Result: {query} enrichment ideas",
     ]
 
 
-async def main() -> TaskResult:
-    cfg = OpenAIModelConfig(
-        model=os.environ["LLM_MODEL"],
-        api_key=SecretStr(os.environ["LLM_API_KEY"]),
-        base_url=os.environ["LLM_BASE_URL"],
-        temperature=0.0,
-        reasoning_effort="low",
-    )
-    model = build_chat_model(cfg)
+agent = create_ido_agent(
+    model=model,
+    tools=[web_search],
+)
 
-    agent = create_ido_agent(
-        model=model,
-        tools=[suggest_next_steps],
-    )
-
-    result = await (
-        agent.with_structured_output(TaskResult)
-        .with_tool_caller(ToolCallerSettings(max_tool_calls=2))
-        .ainvoke(
-            [
-                HumanMessage(
+result = (
+    agent.with_structured_output(PetResult)
+    .with_tool_caller(ToolCallerSettings(max_tool_calls=2))
+    .invoke(
+        [
+            HumanMessage(
                     content=(
-                        "Create a short action plan for shipping a small feature. "
-                        "Call suggest_next_steps and include its output."
+                        "Pick between dogs and cats, explain why, and include care tips. "
                     )
                 )
             ]
         )
-    )
-
-    return result
+)
 ```
 
 ## Why this feels good
