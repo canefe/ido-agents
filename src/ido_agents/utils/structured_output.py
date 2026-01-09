@@ -347,7 +347,7 @@ def _run_tool_caller(
     input_value: Any,
     system_prompt: str | None = None,
 ) -> Any:
-    from idoagents.agents.tool_runner import ToolCallerResult, tool_caller
+    from ido_agents.agents.tool_runner import ToolCallerResult, tool_caller
 
     messages = _inject_system_prompt(
         _extract_messages(input_value), system_prompt=system_prompt
@@ -364,7 +364,7 @@ async def _run_tool_caller_async(
     input_value: Any,
     system_prompt: str | None = None,
 ) -> Any:
-    from idoagents.agents.tool_runner import ToolCallerResult, tool_caller
+    from ido_agents.agents.tool_runner import ToolCallerResult, tool_caller
 
     messages = _inject_system_prompt(
         _extract_messages(input_value), system_prompt=system_prompt
@@ -373,9 +373,7 @@ async def _run_tool_caller_async(
     return _maybe_parse_result(result, response_model)
 
 
-def _maybe_parse_result(
-    result: Any, response_model: Type[BaseModel] | None
-) -> Any:
+def _maybe_parse_result(result: Any, response_model: Type[BaseModel] | None) -> Any:
     if response_model is None:
         return result.text
 

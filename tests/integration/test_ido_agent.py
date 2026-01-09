@@ -7,10 +7,10 @@ from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field, SecretStr
 
-from idoagents.agents.ido_agent import create_ido_agent
-from idoagents.agents.tool_runner import ToolCallerSettings
-from idoagents.models.openai import OpenAIModelConfig, build_chat_model
-from idoagents.utils.console import console_print
+from ido_agents.agents.ido_agent import create_ido_agent
+from ido_agents.agents.tool_runner import ToolCallerSettings
+from ido_agents.models.openai import OpenAIModelConfig, build_chat_model
+from ido_agents.utils.console import console_print
 
 
 class QuestStateUpdate(BaseModel):

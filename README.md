@@ -19,7 +19,7 @@ Minimal setup with `create_ido_agent` and a response model:
 ```python
 from pydantic import BaseModel
 
-from idoagents.agents.ido_agent import create_ido_agent
+from ido_agents.agents.ido_agent import create_ido_agent
 
 
 class Result(BaseModel):

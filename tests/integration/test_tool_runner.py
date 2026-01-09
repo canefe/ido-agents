@@ -7,13 +7,13 @@ from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from pydantic import SecretStr
 
-from idoagents.agents.tool_runner import (
+from ido_agents.agents.tool_runner import (
     ToolCallerResult,
     ToolCallerSettings,
     tool_caller,
 )
-from idoagents.models.openai import OpenAIModelConfig, build_chat_model
-from idoagents.utils.console import console_print
+from ido_agents.models.openai import OpenAIModelConfig, build_chat_model
+from ido_agents.utils.console import console_print
 
 
 @pytest.mark.anyio
@@ -38,7 +38,7 @@ async def test_tool_runner_live_call_if_env_set():
     assert result.tool_calls > 0
 
 
-@pytest.mark.anyio 
+@pytest.mark.anyio
 async def test_tool_runner_live_call_with_tool_limit_if_env_set():
     pytest.importorskip("langchain_openai")
     dotenv.load_dotenv(".env.test")

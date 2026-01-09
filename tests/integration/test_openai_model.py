@@ -4,8 +4,8 @@ import dotenv
 import pytest
 from pydantic import SecretStr
 
-from idoagents.models.openai import OpenAIModelConfig, build_chat_model
-from idoagents.utils.console import console_print
+from ido_agents.models.openai import OpenAIModelConfig, build_chat_model
+from ido_agents.utils.console import console_print
 
 
 def test_build_chat_model_openai():

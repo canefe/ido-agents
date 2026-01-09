@@ -3,7 +3,7 @@ from typing import Any, List, Union
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
-from idoagents.utils.console import console_print
+from ido_agents.utils.console import console_print
 
 
 @dataclass

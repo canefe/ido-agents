@@ -15,7 +15,7 @@ class StructuredOutputAgent:
         response_model: Type[TModel],
         system_prompt: str | None = None,
     ) -> None:
-        from idoagents.utils.structured_output import IdoRunnable
+        from ido_agents.utils.structured_output import IdoRunnable
 
         self._model = IdoRunnable(model).with_structured_output(
             response_model, system_prompt=""
@@ -82,7 +82,8 @@ def create_tool_structured_agent(
     **kwargs: Any,
 ) -> ToolStructuredAgent:
     from langchain.agents import create_agent
-    from idoagents.utils.structured_output import IdoRunnable
+
+    from ido_agents.utils.structured_output import IdoRunnable
 
     agent = create_agent(model=model, tools=list(tools), **kwargs)
     wrapped = IdoRunnable(agent)

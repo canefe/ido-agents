@@ -4,9 +4,9 @@ import dotenv
 import pytest
 from pydantic import BaseModel, SecretStr
 
-from idoagents.agents import create_structured_agent
-from idoagents.models.openai import OpenAIModelConfig, build_chat_model
-from idoagents.utils.console import console_print
+from ido_agents.agents import create_structured_agent
+from ido_agents.models.openai import OpenAIModelConfig, build_chat_model
+from ido_agents.utils.console import console_print
 
 
 class PingResult(BaseModel):
