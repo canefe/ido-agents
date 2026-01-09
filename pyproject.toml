@@ -13,11 +13,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-cov>=7.0.0",
-    "rich>=14.2.0",
-]
+dev = ["pytest>=8.0.0", "pytest-cov>=7.0.0", "rich>=14.2.0"]
+
+[tool.setuptools.package-data]
+"idoagents" = ["py.typed"]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

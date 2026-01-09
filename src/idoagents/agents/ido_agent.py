@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterable, Type
+from typing import Any, Iterable, Type
 
-if TYPE_CHECKING:
-    from idoagents.utils.structured_output import IdoRunnable
+from idoagents.utils.structured_output import IdoRunnable
 
 
 def create_ido_agent(
@@ -13,10 +12,8 @@ def create_ido_agent(
     response_model: Type[Any] | None = None,
     system_prompt: str | None = None,
     **kwargs: Any,
-) -> "IdoRunnable[Any]":
+) -> IdoRunnable[Any]:
     from langchain.agents import create_agent as create_langchain_agent
-
-    from idoagents.utils.structured_output import IdoRunnable
 
     agent = create_langchain_agent(model=model, tools=list(tools), **kwargs)
     wrapped = IdoRunnable(agent)
