@@ -81,7 +81,7 @@ async def tool_caller(
                     and total_tool_calls >= settings.max_tool_calls
                 ):
                     console_print(
-                        f"[yellow]⚠ Tool call limit ({settings.max_tool_calls}) reached.[/yellow]"
+                        f"[yellow]Tool call limit ({settings.max_tool_calls}) reached.[/yellow]"
                     )
                     final_output = await _force_final_response(
                         agent=agent,
