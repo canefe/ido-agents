@@ -1,4 +1,6 @@
-from dataclasses import dataclass
+import json
+import re
+from dataclasses import dataclass, field
 from typing import Any, List, Union
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
@@ -15,6 +17,22 @@ class ToolCallerSettings:
     max_retries: int = 3
     # Note: Retries are usually handled by the LLM binding (.with_retry)
     # or the Agent Executor internally.
+    track_tool_usage: bool = False
+    # When True, tool_caller appends a SystemMessage with prior tool usage context
+    # (tool names, args, context_range) so the LLM knows what it already looked up.
+    prior_tool_usage: list["ToolUsage"] = field(default_factory=list)
+    # Populated after tool_caller runs — contains tool usage from this invocation only.
+    last_tool_usage: list["ToolUsage"] = field(default_factory=list)
+    # Populated after tool_caller runs — total tool calls made in this invocation.
+    last_tool_call_count: int = 0
+
+
+@dataclass
+class ToolUsage:
+    """Record of a single tool call with its args and key metadata from the result."""
+    tool_name: str
+    args: dict[str, Any] = field(default_factory=dict)
+    context_range: str | None = None
 
 
 @dataclass
@@ -24,6 +42,7 @@ class ToolCallerResult:
     error: str | None = None
     parsed: Any | None = None
     parse_error: str | None = None
+    tool_usage: list[ToolUsage] = field(default_factory=list)
 
 
 def extract_text_content(content: Union[str, List[Union[str, dict]]]) -> str:
@@ -45,11 +64,51 @@ def extract_text_content(content: Union[str, List[Union[str, dict]]]) -> str:
     return "\n".join(text_parts).strip()
 
 
+def _extract_context_range(content: Any) -> str | None:
+    """Try to extract context_range from a tool message content."""
+    text = content if isinstance(content, str) else str(content)
+    # Try JSON parse first
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict) and "context_range" in data:
+            return data["context_range"]
+    except (json.JSONDecodeError, TypeError):
+        pass
+    # Fallback: regex
+    m = re.search(r'"context_range"\s*:\s*"([^"]+)"', text)
+    return m.group(1) if m else None
+
+
+def _format_tool_usage_context(usage: list["ToolUsage"]) -> str:
+    """Format prior tool usage into a context string for the LLM."""
+    if not usage:
+        return ""
+    lines = ["## Previously Looked Up Resources"]
+    for u in usage:
+        args_str = ", ".join(f"{k}={v!r}" for k, v in u.args.items()) if u.args else ""
+        line = f"- {u.tool_name}({args_str})"
+        if u.context_range:
+            line += f" — fetched {u.context_range}"
+        lines.append(line)
+    lines.append("\nYou already have these. Avoid re-fetching the same data unless you need a different range.")
+    return "\n".join(lines)
+
+
 async def tool_caller(
     agent: Any, messages: list[BaseMessage], settings: ToolCallerSettings
 ) -> ToolCallerResult:
     total_tool_calls = 0
     final_output = ""
+    limit_reached = False
+    seen_tool_msg_ids: set[str] = set()  # track which ToolMessages we've logged
+    all_tool_usage: list[ToolUsage] = []
+
+    # Inject prior tool usage context if tracking is enabled
+    if settings.track_tool_usage and settings.prior_tool_usage:
+        ctx = _format_tool_usage_context(settings.prior_tool_usage)
+        if ctx:
+            from langchain_core.messages import SystemMessage
+            messages = list(messages) + [SystemMessage(content=ctx)]
 
     # config manages the internal recursion (iterations)
     config = {}
@@ -57,7 +116,9 @@ async def tool_caller(
         config = {"recursion_limit": settings.max_iterations}
 
     try:
-        # stream_mode="values" yields the full state after every step
+        # stream_mode="values" yields the FULL state after each node runs.
+        # After the LLM node: latest message is AIMessage (possibly with tool_calls).
+        # After the tools node: state has all ToolMessages appended at the end.
         async for state in agent.astream(
             {"messages": messages}, config=config, stream_mode="values"
         ):
@@ -67,22 +128,52 @@ async def tool_caller(
 
             latest_msg = current_messages[-1]
 
-            # 1. Track Tool Calls
+            # 1. LLM requested tool calls
             if isinstance(latest_msg, AIMessage) and latest_msg.tool_calls:
                 new_calls = len(latest_msg.tool_calls)
                 total_tool_calls += new_calls
                 console_print(
                     f"[dim]➔ Agent requested {new_calls} tools (Total: {total_tool_calls})[/dim]"
                 )
+                for tc in latest_msg.tool_calls:
+                    tc_args = ", ".join(f"{k}={v!r}" for k, v in tc.get("args", {}).items())
+                    console_print(f"[orange3]  ⚡ {tc['name']}({tc_args})[/orange3]")
 
-                # 2. Check Tool Limit
                 if (
                     settings.max_tool_calls != -1
                     and total_tool_calls >= settings.max_tool_calls
                 ):
+                    limit_reached = True
                     console_print(
-                        f"[yellow]Tool call limit ({settings.max_tool_calls}) reached.[/yellow]"
+                        f"[yellow]⚠ Tool call limit ({settings.max_tool_calls}) reached. "
+                        f"Waiting for tools to finish...[/yellow]"
                     )
+
+            # 2. Tools node finished — latest_msg is a ToolMessage
+            #    Log all new ToolMessages we haven't seen yet.
+            elif isinstance(latest_msg, ToolMessage):
+                # Build a lookup of tool_call_id -> args from AIMessages
+                tool_call_args: dict[str, dict] = {}
+                for m in current_messages:
+                    if isinstance(m, AIMessage) and m.tool_calls:
+                        for tc in m.tool_calls:
+                            tool_call_args[tc["id"]] = tc.get("args", {})
+
+                for msg in current_messages:
+                    if isinstance(msg, ToolMessage) and id(msg) not in seen_tool_msg_ids:
+                        seen_tool_msg_ids.add(id(msg))
+                        args = tool_call_args.get(msg.tool_call_id, {})
+                        args_str = ", ".join(f"{k}={v!r}" for k, v in args.items()) if args else ""
+                        console_print(f"[green]✓ Tool '{msg.name}' completed.[/green] [dim]({args_str})[/dim]" if args_str else f"[green]✓ Tool '{msg.name}' completed.[/green]")
+                        all_tool_usage.append(ToolUsage(
+                            tool_name=msg.name,
+                            args=args,
+                            context_range=_extract_context_range(msg.content),
+                        ))
+
+                # After tools finish and limit was reached, force final response
+                if limit_reached:
+                    console_print("[yellow]All tools done. Forcing final response.[/yellow]")
                     final_output = await _force_final_response(
                         agent=agent,
                         messages=current_messages,
@@ -91,30 +182,30 @@ async def tool_caller(
                     )
                     break
 
-            # 3. Log Tool Results
-            elif isinstance(latest_msg, ToolMessage):
-                console_print(f"[green]✓ Tool '{latest_msg.name}' completed.[/green]")
-
-            # Always update the potential final response
+            # 3. LLM produced a final text response (no tool calls)
             if isinstance(latest_msg, AIMessage) and not latest_msg.tool_calls:
                 final_output = extract_text_content(latest_msg.content)
 
     except Exception as e:
         console_print(f"[red]Streaming Error: {e}[/red]")
+        settings.last_tool_usage = all_tool_usage
         return ToolCallerResult(
             text="Error occurred during agent execution.",
             tool_calls=total_tool_calls,
             error=str(e),
+            tool_usage=all_tool_usage,
         )
+
+    settings.last_tool_usage = all_tool_usage
 
     if not final_output:
         console_print("[yellow]Agent ended without a final text response.[/yellow]")
-        return ToolCallerResult(text="[]", tool_calls=total_tool_calls)
+        return ToolCallerResult(text="[]", tool_calls=total_tool_calls, tool_usage=all_tool_usage)
 
     console_print(
         f"[bold blue]Final Response Ready ({len(final_output)} chars)[/bold blue]"
     )
-    return ToolCallerResult(text=final_output, tool_calls=total_tool_calls)
+    return ToolCallerResult(text=final_output, tool_calls=total_tool_calls, tool_usage=all_tool_usage)
 
 
 async def _force_final_response(

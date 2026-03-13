@@ -200,8 +200,8 @@ wheels = [
 
 [[package]]
 name = "ido-agents"
-version = "0.1.0"
-source = { virtual = "." }
+version = "0.1.4"
+source = { editable = "." }
 dependencies = [
     { name = "langchain" },
     { name = "langchain-openai" },

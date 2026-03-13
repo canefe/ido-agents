@@ -8,6 +8,7 @@ from ido_agents.agents.structured_output import (
 from ido_agents.agents.tool_runner import (
     ToolCallerResult,
     ToolCallerSettings,
+    ToolUsage,
     tool_caller,
 )
 
@@ -16,6 +17,7 @@ __all__ = [
     "ToolStructuredAgent",
     "ToolCallerResult",
     "ToolCallerSettings",
+    "ToolUsage",
     "create_ido_agent",
     "create_structured_agent",
     "create_tool_structured_agent",
