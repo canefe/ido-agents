@@ -274,10 +274,14 @@ class RetryingRunnable(IdoRunnable[TOut]):
         while True:
             try:
                 return await self._runnable.ainvoke(input, **kwargs)
-            except self._retry_exceptions:
+            except self._retry_exceptions as e:
                 if attempts >= self._max_retries:
                     raise
                 attempts += 1
+                import logging
+                logging.getLogger("ido_agents").warning(
+                    f"Retry {attempts}/{self._max_retries}: {type(e).__name__}: {e}"
+                )
 
 
 class ToolCallerRunnable(IdoRunnable[TOut]):
@@ -377,7 +381,11 @@ def _maybe_parse_result(result: Any, response_model: Type[BaseModel] | None) -> 
     if response_model is None:
         return result.text
 
-    return parse_structured_output(response_model, result.text)
+    text = result.text
+    if not text or not text.strip():
+        raise ValueError("Empty response from model — cannot parse structured output")
+
+    return parse_structured_output(response_model, text)
 
 
 def _sync_wait(coro: Any) -> Any:

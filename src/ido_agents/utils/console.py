@@ -12,7 +12,7 @@ def get_console() -> Optional["Console"]:
     except ImportError:
         return None
 
-    return Console()
+    return Console(force_terminal=True)
 
 
 def console_print(message: str) -> None:
