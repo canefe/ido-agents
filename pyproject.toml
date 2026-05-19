@@ -1,6 +1,6 @@
 [project]
 name = "ido-agents"
-version = "0.1.4"
+version = "0.1.5"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -21,6 +21,13 @@ dev = ["pytest>=8.0.0", "pytest-cov>=7.0.0", "rich>=14.2.0"]
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "anyio>=4.12.1",
+    "pytest>=9.0.2",
+    "pytest-anyio>=0.0.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
