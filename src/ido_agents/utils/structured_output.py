@@ -96,12 +96,6 @@ class IdoRunnable(Generic[TOut]):
         if system_prompt is None:
             system_prompt = _default_system_prompt(response_model)
 
-        if hasattr(self._runnable, "with_structured_output"):
-            structured = self._runnable.with_structured_output(response_model)
-            return IdoRunnable[TModel](
-                structured, response_model=response_model, system_prompt=system_prompt
-            )
-
         return StructuredRunnable[TModel](
             runnable=self._runnable,
             response_model=response_model,
@@ -158,30 +152,33 @@ class StructuredRunnable(IdoRunnable[TModel]):
 
     def invoke(self, input: Any, **kwargs: Any) -> TModel:
         output = self._runnable.invoke(self._inject_system_prompt(input), **kwargs)
+        output = _unwrap_langgraph_output(output)
         return parse_structured_output(self._response_model, output)
 
     async def ainvoke(self, input: Any, **kwargs: Any) -> TModel:
         output = await self._runnable.ainvoke(
             self._inject_system_prompt(input), **kwargs
         )
+        output = _unwrap_langgraph_output(output)
         return parse_structured_output(self._response_model, output)
 
     def _inject_system_prompt(self, input: Any) -> Any:
-        if not self._system_prompt:
-            return input
-
         try:
             from langchain_core.messages import SystemMessage
         except Exception:
             SystemMessage = None
 
-        system_msg = (
-            SystemMessage(content=self._system_prompt)
-            if SystemMessage is not None
-            else {"type": "system", "content": self._system_prompt}
-        )
+        # Check if underlying runnable is a LangGraph graph (needs dict input)
+        is_langgraph = _is_langgraph_runnable(self._runnable)
 
         if isinstance(input, dict) and "messages" in input:
+            if not self._system_prompt:
+                return input
+            system_msg = (
+                SystemMessage(content=self._system_prompt)
+                if SystemMessage is not None
+                else {"type": "system", "content": self._system_prompt}
+            )
             messages = list(input["messages"])
             messages.insert(0, system_msg)
             new_input = dict(input)
@@ -190,7 +187,15 @@ class StructuredRunnable(IdoRunnable[TModel]):
 
         if isinstance(input, list):
             messages = list(input)
-            messages.insert(0, system_msg)
+            if self._system_prompt:
+                system_msg = (
+                    SystemMessage(content=self._system_prompt)
+                    if SystemMessage is not None
+                    else {"type": "system", "content": self._system_prompt}
+                )
+                messages.insert(0, system_msg)
+            if is_langgraph:
+                return {"messages": messages}
             return messages
 
         return input
@@ -314,6 +319,25 @@ class ToolCallerRunnable(IdoRunnable[TOut]):
             input_value=input,
             system_prompt=self._system_prompt,
         )
+
+
+def _unwrap_langgraph_output(output: Any) -> Any:
+    """Extract last message content from a LangGraph state dict output."""
+    if isinstance(output, dict) and "messages" in output:
+        messages = output["messages"]
+        if messages:
+            last = messages[-1]
+            if hasattr(last, "content"):
+                return last.content
+    return output
+
+
+def _is_langgraph_runnable(runnable: Any) -> bool:
+    try:
+        from langgraph.pregel import Pregel
+        return isinstance(runnable, Pregel)
+    except Exception:
+        return False
 
 
 def _extract_messages(input_value: Any) -> list[Any]:
